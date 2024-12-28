@@ -11,5 +11,7 @@ Requirments|version
   pymatgen| 2024.11.13
 
 # Usage 
-1. Run load_md_data.py to exchange Structures to the input_ids and attention_mask of bert
-2. Train and predict
+1. download **bert-base-cased** on HuggingFace Web
+2. download IS2RE datasets 
+3. Run load_md_data.py to exchange Structures to the input_ids and attention_mask of bert 
+4. Train and predict
