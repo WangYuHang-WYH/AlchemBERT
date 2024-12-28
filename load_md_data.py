@@ -1,64 +1,65 @@
-from str_matbench_data_generation import get_structure_factory, get_composition_factory
+from str_matbench_data_generation import get_structure_factory
 from constants import des_dict, units_dict
 import os
-import sys
-import time
-import gzip
 import json
-from tqdm import tqdm
 from get_data import get_train_data, get_test_data
-from pymatgen.core import Structure
+from transformers import BertTokenizerFast
 import warnings
 warnings.simplefilter("ignore")
 
+max_length = 512
+bert_path = 'bert-base-cased'
 
-def generate_json(inputs, task, fold, train_or_test, structure_str_format=""):
-    data = []
-    fmt = ''
-    if structure_str_format != "":
-        fmt = structure_str_format
-        for structure in inputs:
 
-            new_item = {
-                "input": f"Please tell me {des_dict[task]} {units_dict[task]}of the following structure:" +
-                         get_structure_factory(structure, structure_str_format),
+class Text2Input:
+
+    def __init__(self, b_path):
+
+        self.tokenizer = BertTokenizerFast.from_pretrained(b_path)
+
+    def preprocess(self, dataset):
+        data = []
+        for i in range(len(dataset)):
+            d = self.tokenizer(
+                dataset[i], padding='max_length', truncation=True, max_length=max_length
+            )
+            dd = {
+                'input_ids': d['input_ids'],
+                'attention_mask': d['attention_mask']
             }
-            data.append(new_item)
+            data.append(dd)
+        return data
 
-    json_str = json.dumps(data, indent=0)
-    compressed_data = gzip.compress(json_str.encode('utf-8'))
 
-    cnt = len(data)
-    file_path = f'data_{fmt}_v2/{train_or_test}_{fold}_{task}_{fmt}_{cnt}.json.gz'
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+def generate_json(inputs, task, train_or_test, structure_str_format=""):
+    data = []
 
-    with open(file_path, 'wb') as file:
-        file.write(compressed_data)
+    file_name = f"{train_or_test}_{structure_str_format}_pad_cased_inputs1.json"
+    text2input = Text2Input(bert_path)
 
-    print(f"Data has been successfully dumped into {file_path}.")
+    for structure in inputs:
+        new_item = (f"Please tell me {des_dict[task]} {units_dict[task]}of the following structure:"
+                    + get_structure_factory(structure, structure_str_format))
+        data.append(new_item)
+
+    inputs = text2input.preprocess(data)
+
+    with open(file_name, 'w') as file:
+        json.dump(inputs, file)
 
 
 def generate_md_nl():
     train_inputs, _ = get_train_data()
     test_inputs, _ = get_test_data()
-    print(train_inputs[0])
-    print(type(train_inputs[0]))
-    print(type(train_inputs))
     train_inputs = train_inputs.values.flatten().tolist()
     test_inputs = test_inputs.values.flatten().tolist()
 
-    # train_inputs = train_inputs[:10]
-    # test_inputs = test_inputs[:10]
-
     task = "matbench_mp_e_form"
-    fold = 0
     structure_str_format = "nl"
 
-    generate_json(train_inputs, task, fold, "Train",
+    generate_json(train_inputs, task, "train",
                   structure_str_format=structure_str_format)
-    generate_json(test_inputs, task, fold, "Test",
+    generate_json(test_inputs, task, "test",
                   structure_str_format=structure_str_format)
 
 
